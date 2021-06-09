@@ -2,6 +2,7 @@
 You can register lua functions that can be called from txt files and they can produce some output.
 
 #Quick start
+
 Usage:
  **luatp -f FILE_PATH_1 -f FILE_PATH_N -o OUTPUT_FILE_PATH**
 
@@ -71,6 +72,7 @@ The *myfile.txt* of course can be split on any number of files, for example *lua
 the output should be the same.
 
 #Functions
+
 **macro(name, argsInfo, callback(callback_args))** - declare macro that you can call from text blocks.
 
 * **name** -name of macro that is used to call it
@@ -113,6 +115,7 @@ Output:
 ```
 
 ##Mark and write functions example
+
 For example we want to preprocess assembler file and we do not want to write all strings in data section, but just write them inplace.
 To achieve this goal we can define following lua macros:
 
