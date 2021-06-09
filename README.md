@@ -1,7 +1,7 @@
 **LuaTextProcessor** is application that can work like simple preprocessor for any txt file.
 You can register lua functions that can be called from txt files and they can produce some output.
 
-#Quick start
+# Quick start
 
 Usage:
  **luatp -f FILE_PATH_1 -f FILE_PATH_N -o OUTPUT_FILE_PATH**
@@ -71,7 +71,7 @@ The *myfile.txt* of course can be split on any number of files, for example *lua
 ```luatp -f lua_definitions.txt -f content.txt``` 
 the output should be the same.
 
-#Functions
+# Functions
 
 **macro(name, argsInfo, callback(callback_args))** - declare macro that you can call from text blocks.
 
@@ -114,7 +114,7 @@ Output:
 2
 ```
 
-##Mark and write functions example
+## Mark and write functions example
 
 For example we want to preprocess assembler file and we do not want to write all strings in data section, but just write them inplace.
 To achieve this goal we can define following lua macros:
