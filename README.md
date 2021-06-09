@@ -91,7 +91,7 @@ Callback function should not return any value
 
 **writeToBlock(block_reference, string)** - append text to text block. Often used with getMarkedBlock()
 
-**registerGenerateLineInfoCallback(callback(lineIndex, filePath))** - this function allows to register callback that can return some string that will be used to generate #line directives for compilers or assemblers in case if line numbering goes out of sync because lua text blocks have been removed. Example:
+**registerGenerateLineInfoCallback(callback(lineIndex, filePath))** - this function allows to register callback that can return some string that will be used to generate #line directives for compilers or assemblers in case if line numbering goes out of sync(for example when lua text blocks have been removed). Example:
   ```lua
 <?lua
 	registerGenerateLineInfoCallback(function(lineIndex, filePath)
@@ -111,3 +111,38 @@ Output:
 #line lineIndex:9 filePath:./example/test.txt
 2
 ```
+
+##Mark and write functions example
+For example we want to preprocess assembler file and we do not want to write all strings in data section, but just write them inplace.
+To achieve this goal we can define following lua macros:
+
+```lua
+macro("STRINGS_LITERALS_STORAGE",{},function()
+    markBlock("strings_literals_storage",currentBlock)
+end)
+
+macro("STRING_LITERAL",{"raw","raw"},function(varName, str)
+    writeToBlock(getMarkedBlock("strings_literals_storage"), ""..varName.."  db  "..str..", 0\n")
+end)
+```
+
+And then in your program you can use it like this:
+```asm
+.data
+STRINGS_LITERALS_STORAGE
+.code
+STRING_LITERAL(helloWorld, "Hello world!")
+STRING_LITERAL(mystring, "Another string!")
+lea si, helloWorld
+```
+
+This input file will be preprocessed into following assembler source file
+```asm
+.data
+helloWorld db "Hello world!",0
+mystring db "Another string!",0
+.code
+lea si, helloWorld
+```
+
+This example shows important feature of the application - it does not process files in stream way, it buffers everything in memory and only at the end dump everything to output. That is why it is possible to append text to already processed blocks
