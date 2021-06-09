@@ -1,0 +1,6 @@
+mymacro('a', '1', 2)kj
+<?lua
+
+
+
+lua?>Third line
