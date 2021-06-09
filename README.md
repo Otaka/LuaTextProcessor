@@ -12,6 +12,16 @@ Usage:
 
 **-o** - output file path. Also it accepts *console* to write the result to stdout. *console* is a default value in case if this flag is omitted.  
 
+# Build
+### Windows
+```go build -o luatp.exe```
+
+### Linux/Mac
+```
+go build -o luatp
+chmod +x ./luatp
+```
+
 Basic example:
 
 *myfile.txt*
