@@ -22,7 +22,7 @@ go build -o luatp
 chmod +x ./luatp
 ```
 
-Basic example:
+# Basic example:
 
 *myfile.txt*
 ```lua
