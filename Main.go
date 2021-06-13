@@ -5,6 +5,8 @@ import (
 	"os"
 )
 
+const version = "0.2"
+
 var filesToProcess []string
 var outputFilePath = "console"
 var luaFiles []string
@@ -39,8 +41,12 @@ func parseCommandLine() {
 
 	for i := 1; i < commandLineArgsCount; i++ {
 		arg := commandLineArgs[i]
-		if arg == "-h" || arg == "--help" {
+		if arg == "-v" || arg == "--version" {
+			printVersion()
+			os.Exit(0)
+		} else if arg == "-h" || arg == "--help" {
 			printHelp(true)
+			os.Exit(0)
 		} else if arg == "-l" {
 			i++
 			checkCommandLineArgExists(i, "You should provide lua file after -l")
@@ -68,21 +74,24 @@ func parseCommandLine() {
 		}
 	}
 }
+func printVersion() {
+	fmt.Println("luatp " + version)
+	fmt.Println("https://github.com/Otaka/LuaTextProcessor")
+}
 
 func printHelp(showFullHelp bool) {
-	fmt.Println("Lua Text Preprocessor is a tool that can transform text with lua")
-	fmt.Println("Usage:")
-	fmt.Println("\tluatp -f sourcefile")
+	fmt.Println("luatp\nLua Text Preprocessor - tool that can preprocess text with lua scripts")
+	fmt.Println("Usage: luatp -f sourcefile")
 	if showFullHelp {
-		fmt.Println("Command line flags are:")
-		fmt.Println("\t-f\t\t\tfile to process")
-		fmt.Println("\t-o\t\t\toutput file. If 'console' - output will be redirected to console. Default - 'console'")
-		fmt.Println("\t-i\t\t\tfile that should be processed before processing main file")
-		fmt.Println("\t-h, --help\tShow help")
+		fmt.Println("Command line flags:")
+		fmt.Println("\t-f\t\t\t\tfile to process")
+		fmt.Println("\t-o\t\t\t\toutput file. If 'console' - output will be redirected to console. Default - 'console'")
+		fmt.Println("\t-l\t\t\t\tfile that should be processed before processing main file")
+		fmt.Println("\t-h, --help\t\tShow help")
+		fmt.Println("\t-v, --version\tShow version")
 	}
 
 	fmt.Println()
-	os.Exit(0)
 }
 
 func main() {

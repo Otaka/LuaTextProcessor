@@ -1,0 +1,32 @@
+<?lua
+    --Example of macro without arguments
+    macro('printdate',{}, function()
+        echo(os.date("today is %A, in %B"))
+    end)
+
+    --Example of macro with one argument
+    local int2str ={
+        "one", "two","three","four","five","six","seven","eight","nine"
+    }
+    macro('INT_TO_STR',{"raw"}, function(num)
+        echo(int2str[tonumber(num)])
+    end)
+
+    --example of macro with two arguments
+    macro('SUM',{"raw","raw"}, function(x1,x2)
+        echo("sum="..(tonumber(x1)+tonumber(x2)))
+    end)
+
+    --example of macro with variable arguments
+    macro('PRINT_LIST',{"raw","raw*"}, function(listName,arrayOfRestOfArgs)
+        echo("Printing list "..listName.."\n")
+        for i=1,#arrayOfRestOfArgs do
+            echo(" * "..arrayOfRestOfArgs[i].."\n")
+        end
+    end)
+lua?>some text
+no arguments: printdate()
+one argument: INT_TO_STR(8)
+two arguments: SUM(8,3)
+variable number of arguments: PRINT_LIST(my list, element 1, "el 2", 4322)
+sometext

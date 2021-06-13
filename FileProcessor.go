@@ -213,7 +213,13 @@ func debugPrint(tokens *list.List, currentNode *list.Element) {
 	}
 }
 
+func flushAndClose(writer *bufio.Writer, file *os.File) {
+	_ = writer.Flush()
+	_ = file.Close()
+}
+
 func processFiles(luaFiles []string, filesToProcess []string, outputFilePath string) {
+
 	luaState := lua.NewState()
 	registerFunctions(luaState)
 	defer luaState.Close()
@@ -227,15 +233,16 @@ func processFiles(luaFiles []string, filesToProcess []string, outputFilePath str
 			panic(err)
 		}
 		writer = bufio.NewWriter(myFile)
-		defer writer.Flush()
-		defer myFile.Close()
+		defer flushAndClose(writer, myFile)
 	}
 	//Execute lua files
 	for _, file := range luaFiles {
 		fileContent := readFile(file)
 		if err := luaState.DoString(fileContent); err != nil {
-			log("Error while processing lua file:" + file)
-			panic(err)
+			log("Error while processing lua file:" + file + "\n" + err.Error())
+			os.Exit(1)
+			//reportErrorAndExit(nil, "")
+			//panic(err)
 		}
 	}
 
@@ -404,7 +411,7 @@ func executeTokens(tokens *list.List, luaState *lua.LState) {
 }
 
 func executeMacro(tokenNode *list.Element, tokens *list.List, token *Token, luaState *lua.LState, macroStruct *MacroStruct) {
-	arguments := matchArguments(tokenNode.Next(), tokens, macroStruct, luaState)
+	arguments := matchArguments(tokenNode.Next(), tokens, macroStruct)
 	token.value = ""
 	luaState.SetGlobal("currentBlock", createUserDataFromToken(token, luaState))
 	luaState.Push(macroStruct.callback)
@@ -425,11 +432,18 @@ func executeMacro(tokenNode *list.Element, tokens *list.List, token *Token, luaS
 			continue
 		}
 	}
-
+	defer func() {
+		if r := recover(); r != nil {
+			apiError := r.(*lua.ApiError)
+			token := tokenNode.Value.(*Token)
+			reportErrorAndExit(token, "Error while executing lua macro [%s]\n%s", macroStruct.name, apiError.Object)
+		}
+	}()
 	luaState.Call(len(arguments), 0)
 }
 
-func matchArguments(tokenNode *list.Element, tokens *list.List, macroStruct *MacroStruct, luaState *lua.LState) []interface{} {
+func matchArguments(tokenNode *list.Element, tokens *list.List, macroStruct *MacroStruct) []interface{} {
+	initToken := tokenNode
 	argsCount := len(macroStruct.arguments)
 	var resultList []interface{}
 	if argsCount == 0 {
@@ -440,7 +454,7 @@ func matchArguments(tokenNode *list.Element, tokens *list.List, macroStruct *Mac
 		if getTokenNodeText(tokenNode) == "(" {
 			skipWhitespaces(tokenNode.Next(), tokens)
 			if getTokenNodeText(tokenNode.Next()) != ")" {
-				luaState.RaiseError("expected ')' to finish 0 argument list, but found [%s]", getTokenNodeText(tokenNode.Next()))
+				reportErrorAndExit(tokenNode.Value.(*Token), "Expected ')' to finish 0 argument list, but found [%s] while processing macro [%s]", escapeStringForDebugPrint(getTokenNodeText(tokenNode.Next())), macroStruct.name)
 			}
 
 			tokens.Remove(tokenNode.Next())
@@ -451,7 +465,7 @@ func matchArguments(tokenNode *list.Element, tokens *list.List, macroStruct *Mac
 	}
 
 	if getTokenNodeText(tokenNode) != "(" {
-		luaState.RaiseError("expected '(' to start argument list, but found [%s]", getTokenNodeText(tokenNode))
+		reportErrorAndExit(tokenNode.Value.(*Token), "Expected '(' to start argument list, but found [%s] while processing macro [%s]", escapeStringForDebugPrint(getTokenNodeText(tokenNode)), macroStruct.name)
 	}
 
 	tokenNode = removeNode(tokenNode, tokens)
@@ -472,7 +486,7 @@ func matchArguments(tokenNode *list.Element, tokens *list.List, macroStruct *Mac
 
 			if !lastArgument {
 				if getTokenNodeText(tokenNode) != "," {
-					luaState.RaiseError("expected ',' but found [%s]", getTokenNodeText(tokenNode))
+					reportErrorAndExit(tokenNode.Value.(*Token), "Expected ',' but found [%s] while processing arguments of macro [%s]", escapeStringForDebugPrint(getTokenNodeText(tokenNode)), macroStruct.name)
 				}
 				tokenNode = removeNode(tokenNode, tokens)
 				debugPrint(tokens, tokenNode)
@@ -488,7 +502,7 @@ func matchArguments(tokenNode *list.Element, tokens *list.List, macroStruct *Mac
 				}
 
 				if getTokenNodeText(tokenNode) != "," {
-					luaState.RaiseError("expected ',' but found [%s]", getTokenNodeText(tokenNode))
+					reportErrorAndExit(tokenNode.Value.(*Token), "Expected ',' but found [%s]", escapeStringForDebugPrint(getTokenNodeText(tokenNode)))
 				}
 				tokenNode = removeNode(tokenNode, tokens)
 				debugPrint(tokens, tokenNode)
@@ -510,15 +524,20 @@ func matchArguments(tokenNode *list.Element, tokens *list.List, macroStruct *Mac
 						tokenNode = removeNode(tokenNode, tokens)
 						continue
 					} else {
-						luaState.RaiseError("cannot parse variadic argument list in macro [%s]. Expected [,] or [)] but found [%s]", macroStruct.name, nextTokenString)
+						reportErrorAndExit(tokenNode.Value.(*Token), "Cannot parse variadic argument list in macro [%s]. Expected [,] or [)] but found [%s]", macroStruct.name, escapeStringForDebugPrint(nextTokenString))
 					}
 				}
 			}
 		}
 	}
 
+	if tokenNode == nil {
+		reportErrorAndExit(initToken.Value.(*Token), "Syntax error while calling macro [%s]", macroStruct.name)
+		return nil
+	}
+
 	if getTokenNodeText(tokenNode) != ")" {
-		luaState.RaiseError("expected ')' to finish argument list, but found [%s]", getTokenNodeText(tokenNode))
+		reportErrorAndExit(tokenNode.Value.(*Token), "Expected ')' to finish argument list, but found [%s]", escapeStringForDebugPrint(getTokenNodeText(tokenNode)))
 	}
 
 	tokenNode = removeNode(tokenNode, tokens)
@@ -568,8 +587,8 @@ func getTokenNodeText(tokenNode *list.Element) string {
 func executeLuaBlock(tokenNode *list.Element, token *Token, luaState *lua.LState) {
 	luaState.SetGlobal("currentBlock", createUserDataFromToken(tokenNode.Next().Value.(*Token), luaState))
 	if err := luaState.DoString(token.value); err != nil {
-		log("Error while processing lua block")
-		panic(err)
+		apiError := err.(*lua.ApiError)
+		reportErrorAndExit(token, "Error while execution lua block\n%s", apiError.Object)
 	}
 }
 
@@ -595,7 +614,7 @@ func RegisterMacro(L *lua.LState) int {
 	L.CheckFunction(3)
 	_, macroExists := macroMap[macroName]
 	if macroExists {
-		L.RaiseError("Macros with name [%s] already exists", macroName)
+		reportErrorAndExit(nil, "Macros with name [%s] already exists", macroName)
 	}
 
 	argumentsTable := L.ToTable(2)
@@ -611,13 +630,13 @@ func RegisterMacro(L *lua.LState) int {
 			argumentType = argumentType[:len(argumentType)-1]
 		}
 		if varargs && !isLastArgument {
-			L.RaiseError("Error while register macro [%s]. Argument %d marked as variadic, but it is not last argument", macroName, i)
+			reportErrorAndExit(nil, "Error while register macro [%s]. Argument %d marked as variadic, but it is not last argument", macroName, i)
 		}
 
 		if argumentType == "raw" {
 			argumentsList = append(argumentsList, argumentType)
 		} else {
-			L.RaiseError("Error while register macro [%s]. Argument %d type should be [raw] but found [%s]", macroName, i, argumentType)
+			reportErrorAndExit(nil, "Error while register macro [%s]. Argument %d type should be [raw] but found [%s]", macroName, i, escapeStringForDebugPrint(argumentType))
 		}
 		if varargs {
 			variadicArgsFunction = varargs
@@ -644,7 +663,7 @@ func MarkBlock(L *lua.LState) int {
 
 	_, exists := markedBlocks[name]
 	if exists {
-		L.RaiseError("Marked block with name [%s] already exists", name)
+		reportErrorAndExit(nil, "Marked block with name [%s] already exists", name)
 	}
 	markedBlocks[name] = block.Value.(*Token)
 	return 0
@@ -655,7 +674,7 @@ func GetMarkedBlock(L *lua.LState) int {
 	name := L.ToString(1)
 	token, exists := markedBlocks[name]
 	if !exists {
-		L.RaiseError("Marked block with name [%s] does not exists", name)
+		reportErrorAndExit(nil, "Marked block with name [%s] does not exists", name)
 	}
 	L.Push(createUserDataFromToken(token, L))
 	return 1
@@ -694,7 +713,7 @@ func readLuaBlockTokens() []*Token {
 
 	luaBlock := readTokenUntilString(LuaBlock, luaEndBlockMarker)
 	if luaBlock.tokenType == EOF || luaBlock.tokenType == UNKNOWN {
-		fail("Read EOF while search lua block end marker [" + luaEndBlockMarker + "]. Found [" + luaBlock.value + "]")
+		reportErrorAndExit(nil, "Read EOF while search lua block end marker ["+luaEndBlockMarker+"]. Found ["+luaBlock.value+"]")
 	}
 
 	result = append(result, luaBlock)
@@ -704,4 +723,21 @@ func readLuaBlockTokens() []*Token {
 	skipChars(len(luaEndBlockMarker))
 	result = append(result, &Token{LUA_BLOCK_END, luaEndBlockMarker, _lineNumber, currentFile})
 	return result
+}
+
+func escapeStringForDebugPrint(str string) string {
+	str = strings.ReplaceAll(str, "\r", "\\r")
+	str = strings.ReplaceAll(str, "\n", "\\n")
+	str = strings.ReplaceAll(str, "\t", "\\t")
+
+	return str
+}
+
+func reportErrorAndExit(token *Token, formatString string, args ...interface{}) {
+	if token != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error at %s:%d\n", token.inputFile, token.lineIndex+1)
+	}
+	_, _ = fmt.Fprintf(os.Stderr, formatString, args...)
+	_, _ = fmt.Fprintln(os.Stderr)
+	os.Exit(1)
 }

@@ -5,7 +5,11 @@ You can register lua functions that can be called from txt files and they can pr
 
 Usage:
  **luatp -f FILE_PATH_1 -f FILE_PATH_N -o OUTPUT_FILE_PATH**
+ 
+**-v,--version** - show application version
 
+**-h,--help** - show help
+ 
 **-f** - input file path. You can provide any number of input files. They will be processed in order. Any input file can contain lua declaration blocks
 
 **-l** - lua file path. Lua files can store some utility functions to make your input files cleaner. You can provide any number of lua files. They will be processed in order.
